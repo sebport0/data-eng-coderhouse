@@ -2,16 +2,16 @@
 
 ## API
 
-(API Ninjas Motorcycles)[https://api-ninjas.com/api/motorcycles]
+[API Ninjas Motorcycles](https://api-ninjas.com/api/motorcycles)
 
 Permite consultar datos sobre motos, de distintos fabricantes, por modelo
 y año de fabricación. Por ejemplo:
 
-```
 Request: GET https://api.api-ninjas.com/v1/motorcycles?make=Motomel
 
 Response:
 
+```json
 [
   {
     "make": "Motomel",
@@ -39,10 +39,8 @@ Response:
     "total_width": "740 mm (29.1 inches)",
     "fuel_capacity": "16.00 litres (4.23 US gallons)",
     "starter": "Electric & kick"
-  },
-  ...
+  }
 ]
-
 ```
 
 Requiere una API-KEY como header y, en la versión gratuita, está limitada a
@@ -51,7 +49,21 @@ Requiere una API-KEY como header y, en la versión gratuita, está limitada a
 ## Criterio para la extracción de datos
 
 Tendremos una lista de fabricantes y de años. Nos quedaremos con los
-primeros 25 datos de cada uno de los fabricantes, por año.
+primeros 30 datos de cada uno de los fabricantes, por año.
+
+El script(probado con python 3.10) se puede correr de la siguiente manera:
+
+```bash
+cd data-eng-coderhouse/entregable_1
+python3 extract.py
+```
+
+Al finalizar, guardará la información en un archivo JSON. Para poder correrlo
+se requiere la librería `requests`:
+
+```bash
+pip install requests
+```
 
 _Nota:_ estoy demasiado acostumbrado al código en 'english'. Sepa disculpar, no
 puedo evitarlo.
