@@ -1,5 +1,8 @@
 # Entregable 1
 
+_Nota:_ estoy demasiado acostumbrado al código en 'english'. Sepa disculpar, no
+puedo evitarlo.
+
 ## API
 
 [API Ninjas Motorcycles](https://api-ninjas.com/api/motorcycles)
@@ -46,10 +49,10 @@ Response:
 Requiere una API-KEY como header y, en la versión gratuita, está limitada a
 50000 requests por mes.
 
-## Criterio para la extracción de datos
+## Extracción de datos
 
 Tendremos una lista de fabricantes y de años. Nos quedaremos con los
-primeros 30 datos de cada uno de los fabricantes, por año.
+primeros 30 datos de cada uno de los fabricantes por año.
 
 El script(probado con python 3.10) se puede correr de la siguiente manera:
 
@@ -58,12 +61,12 @@ cd data-eng-coderhouse/entregable_1
 python3 extract.py
 ```
 
-Al finalizar, guardará la información en un archivo JSON. Para poder correrlo
-se requiere la librería `requests`:
+Al finalizar, guardará la información en un archivo JSON.
+
+## Python: requerimientos
+
+Es necesario tener `requests` instalada:
 
 ```bash
 pip install requests
 ```
-
-_Nota:_ estoy demasiado acostumbrado al código en 'english'. Sepa disculpar, no
-puedo evitarlo.
