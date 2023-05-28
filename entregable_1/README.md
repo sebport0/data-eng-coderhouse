@@ -49,12 +49,12 @@ Response:
 Requiere una API-KEY como header y, en la versión gratuita, está limitada a
 50000 requests por mes.
 
-## Extracción de datos
+## Extracción
 
 Tendremos una lista de fabricantes y de años. Nos quedaremos con los
 primeros 30 datos de cada uno de los fabricantes por año.
 
-El script(probado con python 3.10) se puede correr de la siguiente manera:
+El script se puede correr de la siguiente manera:
 
 ```bash
 cd data-eng-coderhouse/entregable_1
@@ -63,10 +63,44 @@ python3 extract.py
 
 Al finalizar, guardará la información en un archivo JSON.
 
-## Python: requerimientos
+## Carga
 
-Es necesario tener `requests` instalada:
+Usaremos el archivo JSON del paso anterior para la carga de datos
+en Redshift.
 
 ```bash
-pip install requests
+cd data-eng-coderhouse/entregable_1
+python3 load.py
 ```
+
+## Requerimientos
+
+Es necesario contar con las siguientes librerías de Python:
+
+```bash
+pip install requests redshift-connector
+```
+
+La versión de Python con la que se probaron los scripts es la 3.10.
+
+Todas las variables sensibles, como las credenciales para Redshift,
+se leen como env vars por lo que es necesario definirlas antes de
+correr los scripts.
+
+## Posibles mejoras
+
+- El schema puede variar según el fabricante. Podríamos obtener todas
+  las características disponibles en los datos extraídos y definir un
+  schema con todas las columnas posibles para la tabla de Redshift en
+  lugar de priozar un subconjunto de ellas.
+
+- Opté por usar la mínima cantidad posible de librerías externas. Esto
+  podría ser un limitante en el futuro, especialmente en la confección
+  de las queries a Redshift. En el futuro, usar librerías más robustas
+  para hacer esto como SQLAlchemy podrí ser una mejor opción.
+
+- Si bien se escapa del alcance de la tarea: subir los datos a S3 y usar
+  el comando COPY para cargar los datos en Redshift. La documentación
+  menciona que la forma recomendada de carga de datos masivos consiste
+  en utilizar COPY con datos almacenados en S3 y no hacer lo que hicimos
+  en el script de carga que es insertar muchas filas por medio de un INSERT.
