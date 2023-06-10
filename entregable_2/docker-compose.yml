@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  pyspark:
+    image: jupyter/pyspark-notebook:latest
+    container_name: entregable2-pyspark
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./pyspark_data:/home/entregable_2
+    user: root
+    working_dir: /home/entregable_2
+    env_file:
+      - redshift.env
+    networks:
+      - sparknet
+
+networks:
+  sparknet: {}
