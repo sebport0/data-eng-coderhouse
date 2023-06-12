@@ -7,11 +7,11 @@ services:
     ports:
       - "8888:8888"
     volumes:
-      - ./pyspark_data:/home/entregable_2
+      - ./data:/home/entregable_2
     user: root
     working_dir: /home/entregable_2
     env_file:
-      - redshift.env
+      - data/spark.env
     networks:
       - sparknet
 
