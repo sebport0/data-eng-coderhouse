@@ -50,8 +50,8 @@ x-airflow-common:
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
   &airflow-common
-  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.6.2}
-  # build: .
+  build: .
+  # image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.6.2}
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -98,6 +98,8 @@ services:
       retries: 5
       start_period: 5s
     restart: always
+    networks:
+      - entregable3-net
 
   redis:
     image: redis:latest
@@ -110,6 +112,8 @@ services:
       retries: 50
       start_period: 30s
     restart: always
+    networks:
+      - entregable3-net
 
   airflow-webserver:
     <<: *airflow-common
@@ -133,6 +137,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - entregable3-net
 
   airflow-scheduler:
     <<: *airflow-common
@@ -154,6 +160,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - entregable3-net
 
   airflow-worker:
     <<: *airflow-common
@@ -176,6 +184,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - entregable3-net
 
   airflow-triggerer:
     <<: *airflow-common
@@ -195,6 +205,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - entregable3-net
 
   airflow-init:
     <<: *airflow-common
@@ -269,44 +281,62 @@ services:
       _AIRFLOW_WWW_USER_CREATE: "true"
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-      _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- apache-airflow-providers-apache-spark pyspark}
-    user: "airflow:airflow"
+      _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+    user: "0:0"
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
-  # airflow-cli:
-  #   <<: *airflow-common
-  #   profiles:
-  #     - debug
-  #   environment:
-  #     <<: *airflow-common-env
-  #     CONNECTION_CHECK_MAX_COUNT: "0"
-  #   # Workaround for entrypoint issue. See: https://github.com/apache/airflow/issues/16252
-  #   command:
-  #     - bash
-  #     - -c
-  #     - airflow
-  #
-  # # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
-  # # or by explicitly targeted on the command line e.g. docker-compose up flower.
-  # # See: https://docs.docker.com/compose/profiles/
-  # flower:
-  #   <<: *airflow-common
-  #   command: celery flower
-  #   profiles:
-  #     - flower
-  #   ports:
-  #     - "5555:5555"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 30s
-  #   restart: always
-  #   depends_on:
-  #     <<: *airflow-common-depends-on
-  #     airflow-init:
-  #       condition: service_completed_successfully
-  #
+    networks:
+      - entregable3-net
+
+  spark:
+    # image: apache/spark:3.4.1-python3
+    image: bitnami/spark:3.4.1
+    hostname: spark
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "8090:8080"
+      - "7077:7077"
+    networks:
+      - entregable3-net
+
+  spark-worker:
+    # image: apache/spark:3.4.1-python3
+    image: bitnami/spark:3.4.1
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    networks:
+      - entregable3-net
+
+  localstack:
+    container_name: localstack
+    image: localstack/localstack
+    ports:
+      - "127.0.0.1:4566:4566" # LocalStack Gateway
+      - "127.0.0.1:4510-4559:4510-4559" # external services port range
+    environment:
+      - DEBUG=${DEBUG-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "./localstack/volume:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - entregable3-net
+
 volumes:
   postgres-db-volume:
+
+
+networks:
+  entregable3-net:
