@@ -110,6 +110,22 @@ class ETL:
 
         return transformed_df
 
+    @staticmethod
+    def load(df: DataFrame, table: str):
+        _ = (
+            df.write.format("jdbc")
+            .option(
+                "url",
+                f"jdbc:postgresql://{Variable.get('REDSHIFT_CODER_HOST')}:{Variable.get('REDSHIFT_CODER_PORT')}/{Variable.get('REDSHIFT_CODER_DB')}",
+            )
+            .option("dbtable", table)
+            .option("user", Variable.get("REDSHIFT_CODER_USER"))
+            .option("password", Variable.get("REDSHIFT_CODER_PASSWORD"))
+            .option("driver", "org.postgresql.Driver")
+            .mode("overwrite")
+            .save()
+        )
+
 
 # TODO: documentation
 @dag(
@@ -268,21 +284,8 @@ def entregable_3():
         s3_bucket = transform_response["s3_bucket"]
         s3_key = transform_response["key"]
         df = spark.read.json(f"s3a://{s3_bucket}/{s3_key}")
-        df.show(3)
 
-        _ = (
-            df.write.format("jdbc")
-            .option(
-                "url",
-                f"jdbc:postgresql://{Variable.get('REDSHIFT_CODER_HOST')}:{Variable.get('REDSHIFT_CODER_PORT')}/{Variable.get('REDSHIFT_CODER_DB')}",
-            )
-            .option("dbtable", table)
-            .option("user", Variable.get("REDSHIFT_CODER_USER"))
-            .option("password", Variable.get("REDSHIFT_CODER_PASSWORD"))
-            .option("driver", "org.postgresql.Driver")
-            .mode("overwrite")
-            .save()
-        )
+        ETL.load(df, table)
 
     table = create_redshift_table()
     s3_bucket = create_s3_bucket()
