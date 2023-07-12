@@ -2,25 +2,16 @@ import logging
 from datetime import datetime, timedelta
 from http import HTTPStatus
 
-import boto3
-import pyspark.sql.functions as F
-import requests
 from airflow.decorators import dag, task
 from airflow.models import Variable
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col
-from pyspark.sql.types import FloatType
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-API_URL = "https://api.api-ninjas.com/v1/motorcycles"
-# MANUFACTURERS = ["Motomel", "Zanella", "Honda", "Kawasaki", "Harley-Davidson"]
-MANUFACTURERS = ["Honda"]
-YEARS = list(range(2015, 2023))
-
 
 def save_in_s3(bucket: str, key: str, data: str):
+    import boto3
+
     client = boto3.client(
         "s3",
         endpoint_url=Variable.get("S3_ENDPOINT_URL"),
@@ -31,6 +22,8 @@ def save_in_s3(bucket: str, key: str, data: str):
 
 
 def read_from_s3(bucket: str, key: str) -> str:
+    import boto3
+
     client = boto3.client(
         "s3",
         endpoint_url=Variable.get("S3_ENDPOINT_URL"),
@@ -41,9 +34,29 @@ def read_from_s3(bucket: str, key: str) -> str:
     return response["Body"].read()
 
 
+def get_spark_session():
+    from pyspark.sql import SparkSession
+
+    spark = (
+        SparkSession.builder.master("spark://spark:7077")
+        .config("spark.jars.packages", "org.apache.spark:spark-hadoop-cloud_2.12:3.2.0")
+        .config("spark.hadoop.fs.s3a.access.key", "test")
+        .config("spark.hadoop.fs.s3a.secret.key", "test")
+        .config("spark.hadoop.fs.s3a.endpoint", Variable.get("S3_ENDPOINT_URL"))
+        .config("spark.hadoop.fs.s3a.path.style.access", "true")
+        .getOrCreate()
+    )
+    return spark
+
+
 class ETL:
+    from pyspark.sql import DataFrame
+
     @staticmethod
-    def extract(manufacturers: list[str], years: list[int], api_url: str) -> list[dict]:
+    def extract(manufacturers: list[str], years: list[int]) -> list[dict]:
+        import requests
+
+        api_url = Variable.get("MOTORCYCLES_API_URL")
         api_token = Variable.get("MOTORCYCLES_API_KEY")
         headers = {"X-Api-Key": api_token}
 
@@ -78,6 +91,10 @@ class ETL:
 
     @staticmethod
     def transform(df: DataFrame) -> DataFrame:
+        import pyspark.sql.functions as F
+        from pyspark.sql.functions import col
+        from pyspark.sql.types import FloatType
+
         transformed_df = df.withColumn("year", col("year").cast("Integer"))
 
         def weight_in_kg(value):
@@ -92,21 +109,6 @@ class ETL:
             )
 
         return transformed_df
-
-
-def get_spark_session():
-    spark = (
-        SparkSession.builder.master("spark://spark:7077")
-        # .config(
-        #     "spark.jars.packages", "org.apache.spark:spark-hadoop-cloud_2.12:3.2.0"
-        # )
-        # .config("spark.hadoop.fs.s3a.access.key", "test")
-        # .config("spark.hadoop.fs.s3a.secret.key", "test")
-        # .config("spark.hadoop.fs.s3a.endpoint", Variable.get(S3_ENDPOINT_URL))
-        # .config("spark.hadoop.fs.s3a.path.style.access", "true")
-        .getOrCreate()
-    )
-    return spark
 
 
 # TODO: documentation
@@ -141,12 +143,15 @@ def entregable_3():
         return s3_bucket
 
     @task
-    def get_motorcycles_data(
-        s3_bucket: str, manufacturers: list[str], years: list[int], api_url: str
-    ) -> dict[str, str]:
+    def get_motorcycles_data(s3_bucket: str) -> dict[str, str]:
         import json
 
-        motorcycles_data = ETL.extract(manufacturers, years, api_url)
+        # TODO: use all manufacturers.
+        # manufacturers = ["Motomel", "Zanella", "Honda", "Kawasaki", "Harley-Davidson"]
+        manufacturers = ["Honda"]
+        years = list(range(2015, 2023))
+
+        motorcycles_data = ETL.extract(manufacturers, years)
 
         motorcycles_data_string = json.dumps(motorcycles_data)
         key = "data.json"
@@ -155,7 +160,7 @@ def entregable_3():
         return {"s3_bucket": s3_bucket, "key": key}
 
     @task
-    def transform_motorcycles_data_with_spark(extract_response: dict) -> str:
+    def transform_motorcycles_data_with_spark(extract_response: dict) -> dict[str, str]:
         import json
 
         logger.info("Loading data from the extract step...")
@@ -171,37 +176,36 @@ def entregable_3():
         df = spark.createDataFrame(raw_motorcycles_data)
 
         logger.info("Applying transformations...")
-        ETL.transform(df)
+        transformed_df = ETL.transform(df)
 
-        # Save transformed data as parquet in S3.
-        # new_key = "transformed-data/data.json"
-        # logger.info(
-        #     f"Saving transformed data in S3 bucket {s3_bucket} with key {new_key}..."
-        # )
-        # transformed_df.write.json(f"s3a://{s3_bucket}/{new_key}", mode="overwrite")
-        logger.info("Saving in JSON data.json...")
-        filepath = "transformed_data.json"
-        transformed_df.write.json(filepath, mode="overwrite")
+        # Save transformed data as json in S3.
+        new_key = "transformed-data"
+        logger.info(
+            f"Saving transformed data in S3 bucket {s3_bucket} with key {new_key}..."
+        )
+        transformed_df.write.json(f"s3a://{s3_bucket}/{new_key}", mode="overwrite")
 
-        # TODO: save to S3 as transformed_df.json
-        # motorcycles_data_string = json.dumps(motorcycles_data)
-        # key = "motorcycles_data.json"
-        # client.put_object(Bucket=s3_bucket, Key=key, Body=motorcycles_data_string)
         logger.info("Done.")
 
-        return filepath
+        return {"s3_bucket": s3_bucket, "key": new_key}
 
     @task
-    def load(transform_response: str):
+    def load(transform_response: dict[str, str]):
         print(f"Load {transform_response}")
+        spark = get_spark_session()
+
+        s3_bucket = transform_response["s3_bucket"]
+        s3_key = transform_response["key"]
+        df = spark.read.json(f"s3a://{s3_bucket}/{s3_key}")
+        df.show(3)
 
     s3_bucket = create_s3_bucket()
-    get_motorcycles_data_response = get_motorcycles_data(
-        s3_bucket, MANUFACTURERS, YEARS, API_URL
-    )
+    get_motorcycles_data_response = get_motorcycles_data(s3_bucket)
     transform_motorcycles_data_response = transform_motorcycles_data_with_spark(
         get_motorcycles_data_response
     )
+    # TODO: task to create redshift table.
+    # TOOD: load data in redshift.
     load(transform_motorcycles_data_response)
 
 
