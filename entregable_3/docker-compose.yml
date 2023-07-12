@@ -76,6 +76,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - ./spark/jars/postgresql-42.5.2.jar:/tmp/drivers/postgresql-42.5.2.jar
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     redis:
@@ -289,7 +290,6 @@ services:
       - entregable3-net
 
   spark:
-    # image: apache/spark:3.4.1-python3
     image: bitnami/spark:3.4.1
     hostname: spark
     environment:
@@ -303,9 +303,10 @@ services:
       - "7077:7077"
     networks:
       - entregable3-net
+    volumes:
+      - ./spark/jars/postgresql-42.5.2.jar:/tmp/drivers/postgresql-42.5.2.jar
 
   spark-worker:
-    # image: apache/spark:3.4.1-python3
     image: bitnami/spark:3.4.1
     environment:
       - SPARK_MODE=worker
@@ -318,6 +319,8 @@ services:
       - SPARK_SSL_ENABLED=no
     networks:
       - entregable3-net
+    volumes:
+      - ./spark/jars/postgresql-42.5.2.jar:/tmp/drivers/postgresql-42.5.2.jar
 
   localstack:
     container_name: localstack
