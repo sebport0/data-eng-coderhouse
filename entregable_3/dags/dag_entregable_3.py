@@ -190,7 +190,78 @@ def entregable_3():
         return {"s3_bucket": s3_bucket, "key": new_key}
 
     @task
-    def load(transform_response: dict[str, str]):
+    def create_redshift_table() -> str:
+        import redshift_connector
+
+        connection = redshift_connector.connect(
+            host=Variable.get("REDSHIFT_CODER_HOST"),
+            database=Variable.get("REDSHIFT_CODER_DB"),
+            port=int(Variable.get("REDSHIFT_CODER_PORT")),
+            user=Variable.get("REDSHIFT_CODER_USER"),
+            password=Variable.get("REDSHIFT_CODER_PASSWORD"),
+        )
+        connection.autocommit = True
+        cursor = connection.cursor()
+
+        table_name = "motorcycles_entregable3"
+        schema_table = f"{Variable.get('REDSHIFT_CODER_SCHEMA')}.{table_name}"
+        statement = f"""
+        CREATE TABLE IF NOT EXISTS {schema_table} (
+            make varchar not null,
+            model varchar not null,
+            year integer not null,
+            type varchar not null,
+            bore_stroke varchar,
+            clutch varchar,
+            compression varchar,
+            cooling varchar,
+            displacement varchar,
+            dry_weight varchar,
+            emission varchar,
+            engine varchar,
+            frame varchar,
+            front_brakes varchar,
+            front_suspension varchar,
+            front_tire varchar,
+            front_wheel_travel varchar,
+            fuel_capacity varchar,
+            fuel_consumption varchar,
+            fuel_control varchar,
+            fuel_system varchar,
+            gearbox varchar,
+            ground_clearance varchar,
+            ignition varchar,
+            lubrication varchar,
+            power varchar,
+            rear_brakes varchar,
+            rear_suspension varchar,
+            rear_tire varchar,
+            rear_wheel_travel varchar,
+            seat_height varchar,
+            starter varchar,
+            top_speed varchar,
+            torque varchar,
+            total_height varchar,
+            total_length varchar,
+            total_weight varchar,
+            total_width varchar,
+            transmission varchar,
+            valves_per_cylinder varchar,
+            wheelbase varchar,
+            dry_weight_kg float,
+            total_weight_kg float
+        )
+        diststyle even
+        sortkey(year);
+        """
+        cursor.execute(statement)
+
+        return schema_table
+
+    @task
+    def load_motorcycles_data_in_redshift(
+        transform_response: dict[str, str], table: str
+    ):
         print(f"Load {transform_response}")
         spark = get_spark_session()
 
@@ -199,6 +270,21 @@ def entregable_3():
         df = spark.read.json(f"s3a://{s3_bucket}/{s3_key}")
         df.show(3)
 
+        _ = (
+            df.write.format("jdbc")
+            .option(
+                "url",
+                f"jdbc:postgresql://{Variable.get('REDSHIFT_CODER_HOST')}:{Variable.get('REDSHIFT_CODER_PORT')}/{Variable.get('REDSHIFT_CODER_DB')}",
+            )
+            .option("dbtable", table)
+            .option("user", Variable.get("REDSHIFT_CODER_USER"))
+            .option("password", Variable.get("REDSHIFT_CODER_PASSWORD"))
+            .option("driver", "org.postgresql.Driver")
+            .mode("overwrite")
+            .save()
+        )
+
+    table = create_redshift_table()
     s3_bucket = create_s3_bucket()
     get_motorcycles_data_response = get_motorcycles_data(s3_bucket)
     transform_motorcycles_data_response = transform_motorcycles_data_with_spark(
@@ -206,7 +292,7 @@ def entregable_3():
     )
     # TODO: task to create redshift table.
     # TOOD: load data in redshift.
-    load(transform_motorcycles_data_response)
+    load_motorcycles_data_in_redshift(transform_motorcycles_data_response, table)
 
 
 entregable_3()
