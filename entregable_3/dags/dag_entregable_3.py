@@ -39,7 +39,10 @@ def get_spark_session():
 
     spark = (
         SparkSession.builder.master("spark://spark:7077")
-        .config("spark.jars.packages", "org.apache.spark:spark-hadoop-cloud_2.12:3.2.0")
+        .config(
+            "spark.jars.packages",
+            "org.apache.spark:spark-hadoop-cloud_2.12:3.2.0,org.postgresql:postgresql:42.6.0",
+        )
         .config("spark.hadoop.fs.s3a.access.key", "test")
         .config("spark.hadoop.fs.s3a.secret.key", "test")
         .config("spark.hadoop.fs.s3a.endpoint", Variable.get("S3_ENDPOINT_URL"))
@@ -112,15 +115,15 @@ class ETL:
 
     @staticmethod
     def load(df: DataFrame, table: str):
+        db_url = f"jdbc:postgresql://{Variable.get('REDSHIFT_CODER_HOST')}:{Variable.get('REDSHIFT_CODER_PORT')}/{Variable.get('REDSHIFT_CODER_DB')}"
+        user = Variable.get("REDSHIFT_CODER_USER")
+        password = Variable.get("REDSHIFT_CODER_PASSWORD")
         _ = (
             df.write.format("jdbc")
-            .option(
-                "url",
-                f"jdbc:postgresql://{Variable.get('REDSHIFT_CODER_HOST')}:{Variable.get('REDSHIFT_CODER_PORT')}/{Variable.get('REDSHIFT_CODER_DB')}",
-            )
+            .option("url", db_url)
             .option("dbtable", table)
-            .option("user", Variable.get("REDSHIFT_CODER_USER"))
-            .option("password", Variable.get("REDSHIFT_CODER_PASSWORD"))
+            .option("user", user)
+            .option("password", password)
             .option("driver", "org.postgresql.Driver")
             .mode("overwrite")
             .save()
@@ -132,7 +135,7 @@ class ETL:
     dag_id="entregable_3",
     schedule=None,
     start_date=datetime(2023, 5, 30),
-    dagrun_timeout=timedelta(minutes=10),
+    dagrun_timeout=timedelta(minutes=30),
     tags=["coder-entregables"],
 )
 def entregable_3():
@@ -162,15 +165,15 @@ def entregable_3():
     def get_motorcycles_data(s3_bucket: str) -> dict[str, str]:
         import json
 
-        # TODO: use all manufacturers.
-        # manufacturers = ["Motomel", "Zanella", "Honda", "Kawasaki", "Harley-Davidson"]
-        manufacturers = ["Honda"]
+        manufacturers = ["Motomel", "Zanella", "Honda", "Kawasaki", "Harley-Davidson"]
         years = list(range(2015, 2023))
 
+        logger.info("Reading motorcycles data from API...")
         motorcycles_data = ETL.extract(manufacturers, years)
 
         motorcycles_data_string = json.dumps(motorcycles_data)
         key = "data.json"
+        logger.info(f"Loading data in S3 s3://{s3_bucket}/{key}")
         save_in_s3(s3_bucket, key, motorcycles_data_string)
 
         return {"s3_bucket": s3_bucket, "key": key}
@@ -209,6 +212,7 @@ def entregable_3():
     def create_redshift_table() -> str:
         import redshift_connector
 
+        logger.info("Connecting to Redshift...")
         connection = redshift_connector.connect(
             host=Variable.get("REDSHIFT_CODER_HOST"),
             database=Variable.get("REDSHIFT_CODER_DB"),
@@ -220,6 +224,7 @@ def entregable_3():
         cursor = connection.cursor()
 
         table_name = "motorcycles_entregable3"
+        logger.info(f"Creating table {table_name}...")
         schema_table = f"{Variable.get('REDSHIFT_CODER_SCHEMA')}.{table_name}"
         statement = f"""
         CREATE TABLE IF NOT EXISTS {schema_table} (
@@ -271,6 +276,7 @@ def entregable_3():
         sortkey(year);
         """
         cursor.execute(statement)
+        logger.info("Table created successfully.")
 
         return schema_table
 
@@ -278,13 +284,15 @@ def entregable_3():
     def load_motorcycles_data_in_redshift(
         transform_response: dict[str, str], table: str
     ):
-        print(f"Load {transform_response}")
+        logger.info("Getting Spark session...")
         spark = get_spark_session()
 
         s3_bucket = transform_response["s3_bucket"]
         s3_key = transform_response["key"]
+        logger.info(f"Reading data from S3 s3://{s3_bucket}/{s3_key}")
         df = spark.read.json(f"s3a://{s3_bucket}/{s3_key}")
 
+        logger.info(f"Loading data in Redshift table {table}...")
         ETL.load(df, table)
 
     table = create_redshift_table()
@@ -293,8 +301,6 @@ def entregable_3():
     transform_motorcycles_data_response = transform_motorcycles_data_with_spark(
         get_motorcycles_data_response
     )
-    # TODO: task to create redshift table.
-    # TOOD: load data in redshift.
     load_motorcycles_data_in_redshift(transform_motorcycles_data_response, table)
 
 
