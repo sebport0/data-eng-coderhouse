@@ -57,7 +57,7 @@ Tenemos 3 componentes:
 ## DAG
 
 ```mermaid
-grap LR
+graph LR
     A[create_s3_bucket] --> B[get_motorcycles_data]
     B --> C[transform_motorcycles_data_with_spark]
     C --> D[load_motorcycles_data_in_redshift]
