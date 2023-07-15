@@ -45,7 +45,7 @@ graph LR
 
 Tenemos 3 componentes:
 
-- Airflow: orquesta las tareas en el esperado.
+- Airflow: orquesta las tareas en el orden esperado.
 - Spark: lee los datos de la API, realiza algunas transformaciones
   y carga los datos finales en Redshift.
 - LocalStack: para emular S3. Repositorio en el que las tareas
@@ -65,3 +65,10 @@ graph LR
 ```
 
 ## Conclusiones
+
+- Usé la TaskFlow API de Airflow para definir el DAG. Me pareció una gran manera de abstraerse
+  de ciertos detalles como los XCom y de usar una forma más pythonesca de definir el DAG, que
+  evita romper el LSP(por ejemplo: task1 >> task2 >> task3 al LSP pyright no le gusta nada).
+- Me llevo una imagen positiva de Airflow.
+- Levantar Spark y hacer que se comunique con Airflow fue lo más complicado del entregable.
+  El ejemplo en el repo del curso me ayudó bastante con el setup.
