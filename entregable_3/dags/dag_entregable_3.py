@@ -130,7 +130,6 @@ class ETL:
         )
 
 
-# TODO: documentation
 @dag(
     dag_id="entregable_3",
     schedule=None,
@@ -139,8 +138,22 @@ class ETL:
     tags=["coder-entregables"],
 )
 def entregable_3():
+    """
+    ### Entregable 3 DAG
+    Este pipeline extrae datos de distintos modelos de motos desde
+    motorcycles API, realiza algunas transformaciones simples y
+    los carga en Redshift.
+
+    En los pasos intermedios utiliza S3 para guardar los datos y
+    Spark para transformarlos y cargarlos en Redshift.
+    """
+
     @task
     def create_s3_bucket() -> str:
+        """
+        Esta tarea es idempotente. Primero revisa que el bucket no exista,
+        si no existe lo crea pero si existe no hace nada.
+        """
         import boto3
 
         client = boto3.client(
@@ -163,6 +176,10 @@ def entregable_3():
 
     @task
     def get_motorcycles_data(s3_bucket: str) -> dict[str, str]:
+        """
+        Extrae datos desde [motorcycles API](https://www.api-ninjas.com/api/motorcycles)
+        para diferentes fabricantes y los guarda en formato JSON en S3.
+        """
         import json
 
         manufacturers = ["Motomel", "Zanella", "Honda", "Kawasaki", "Harley-Davidson"]
@@ -180,6 +197,12 @@ def entregable_3():
 
     @task
     def transform_motorcycles_data_with_spark(extract_response: dict) -> dict[str, str]:
+        """
+        Consume los datos de la task anterior con Spark, los transforma y
+        los guarda como JSON en S3. Los datos transformados no
+        sobrescriben a los originales, sino que se guardan como un
+        archivo distinto.
+        """
         import json
 
         logger.info("Loading data from the extract step...")
@@ -210,6 +233,10 @@ def entregable_3():
 
     @task
     def create_redshift_table() -> str:
+        """
+        Crea la tabla 'motorcycles_entregable3' en Redshift solamente
+        si dicha tabla no fue creada en una corrida anterior.
+        """
         import redshift_connector
 
         logger.info("Connecting to Redshift...")
@@ -284,6 +311,10 @@ def entregable_3():
     def load_motorcycles_data_in_redshift(
         transform_response: dict[str, str], table: str
     ):
+        """
+        Guarda los datos resultantes de la transformación en Redshift.
+        Para ello, lee los datos desde S3 con Spark.
+        """
         logger.info("Getting Spark session...")
         spark = get_spark_session()
 
