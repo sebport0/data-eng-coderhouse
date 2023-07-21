@@ -174,14 +174,23 @@ def entregable_3():
         para diferentes fabricantes y los guarda en formato JSON en S3.
         """
 
-        manufacturers = ["Motomel", "Zanella", "Honda", "Kawasaki", "Harley-Davidson"]
-        years = list(range(2015, 2023))
+        key = "data.json"
+        logger.info("Checking if data already exists in S3...")
+        motorcycles_data = json.loads(read_from_s3(s3_bucket, key))
+        if not motorcycles_data:
+            logger.info("Reading motorcycles data from API...")
+            manufacturers = [
+                "Motomel",
+                "Zanella",
+                "Honda",
+                "Kawasaki",
+                "Harley-Davidson",
+            ]
+            years = list(range(2015, 2023))
 
-        logger.info("Reading motorcycles data from API...")
-        motorcycles_data = ETL.extract(manufacturers, years)
+            motorcycles_data = ETL.extract(manufacturers, years)
 
         motorcycles_data_string = json.dumps(motorcycles_data)
-        key = "data.json"
         logger.info(f"Loading data in S3 s3://{s3_bucket}/{key}")
         save_in_s3(s3_bucket, key, motorcycles_data_string)
 
