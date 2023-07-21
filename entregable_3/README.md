@@ -17,14 +17,15 @@ echo -e "AIRFLOW_UID=$(id -u)" > .env
 docker compose up airflow-init
 ```
 
-- Ya estamos en condiciones de correr Airflow:
+- Ya estamos en condiciones levantarlo:
 
 ```bash
 docker compose up
 ```
 
-Ahora podemos acceder a la UI de Airflow desde `localhost:8080`.
-Vamos a configurar, desde la UI, las variables que necesita el DAG:
+Desde `localhost:8080` podemos manejar la consola web.
+
+Para configurar las variables que necesita el DAG:
 
 - Vamos a `Admin` > `Variables`.
 - Podemos importar `variables.json` desde el botón `Import Variables` o
@@ -64,11 +65,15 @@ graph LR
     E[create_redshift_table] --> D
 ```
 
+Podemos correrlo manualmente desde la UI de Airflow.
+
 ## Conclusiones
 
 - Usé la TaskFlow API de Airflow para definir el DAG. Me pareció una gran manera de abstraerse
   de ciertos detalles como los XCom y de usar una forma más pythonesca de definir el DAG, que
   evita romper el LSP(por ejemplo: task1 >> task2 >> task3 al LSP pyright no le gusta nada).
 - Me llevo una imagen positiva de Airflow.
-- Levantar Spark y hacer que se comunique con Airflow fue lo más complicado del entregable.
+- Levantar Spark y hacer que se comunique con Airflow y S3 fue lo más complicado del entregable.
+  Como en el entregable 2 creo que se debe más a un error de mi parte: no saber buscar de forma adecuada y no
+  estar al día con el mundo de Java. Por ejemplo: Maven y cómo traerse un jar.
   El ejemplo en el repo del curso me ayudó bastante con el setup.
