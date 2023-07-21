@@ -1,17 +1,23 @@
+import json
 import logging
 from datetime import datetime, timedelta
 from http import HTTPStatus
 
+import boto3
+import pyspark.sql.functions as F
+import redshift_connector
+import requests
 from airflow.decorators import dag, task
 from airflow.models import Variable
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import col
+from pyspark.sql.types import FloatType
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
 def save_in_s3(bucket: str, key: str, data: str):
-    import boto3
-
     client = boto3.client(
         "s3",
         endpoint_url=Variable.get("S3_ENDPOINT_URL"),
@@ -22,8 +28,6 @@ def save_in_s3(bucket: str, key: str, data: str):
 
 
 def read_from_s3(bucket: str, key: str) -> str:
-    import boto3
-
     client = boto3.client(
         "s3",
         endpoint_url=Variable.get("S3_ENDPOINT_URL"),
@@ -35,8 +39,6 @@ def read_from_s3(bucket: str, key: str) -> str:
 
 
 def get_spark_session():
-    from pyspark.sql import SparkSession
-
     spark = (
         SparkSession.builder.master("spark://spark:7077")
         .config(
@@ -53,12 +55,8 @@ def get_spark_session():
 
 
 class ETL:
-    from pyspark.sql import DataFrame
-
     @staticmethod
     def extract(manufacturers: list[str], years: list[int]) -> list[dict]:
-        import requests
-
         api_url = Variable.get("MOTORCYCLES_API_URL")
         api_token = Variable.get("MOTORCYCLES_API_KEY")
         headers = {"X-Api-Key": api_token}
@@ -94,10 +92,6 @@ class ETL:
 
     @staticmethod
     def transform(df: DataFrame) -> DataFrame:
-        import pyspark.sql.functions as F
-        from pyspark.sql.functions import col
-        from pyspark.sql.types import FloatType
-
         transformed_df = df.withColumn("year", col("year").cast("Integer"))
 
         def weight_in_kg(value):
@@ -154,7 +148,6 @@ def entregable_3():
         Esta tarea es idempotente. Primero revisa que el bucket no exista,
         si no existe lo crea pero si existe no hace nada.
         """
-        import boto3
 
         client = boto3.client(
             "s3",
@@ -180,7 +173,6 @@ def entregable_3():
         Extrae datos desde [motorcycles API](https://www.api-ninjas.com/api/motorcycles)
         para diferentes fabricantes y los guarda en formato JSON en S3.
         """
-        import json
 
         manufacturers = ["Motomel", "Zanella", "Honda", "Kawasaki", "Harley-Davidson"]
         years = list(range(2015, 2023))
@@ -203,7 +195,6 @@ def entregable_3():
         sobrescriben a los originales, sino que se guardan como un
         archivo distinto.
         """
-        import json
 
         logger.info("Loading data from the extract step...")
         s3_bucket = extract_response["s3_bucket"]
@@ -237,7 +228,6 @@ def entregable_3():
         Crea la tabla 'motorcycles_entregable3' en Redshift solamente
         si dicha tabla no fue creada en una corrida anterior.
         """
-        import redshift_connector
 
         logger.info("Connecting to Redshift...")
         connection = redshift_connector.connect(
