@@ -325,13 +325,11 @@ def entregable_3():
         logger.info(f"Loading data in Redshift table {table}...")
         ETL.load(df, table)
 
-    table = create_redshift_table()
-    s3_bucket = create_s3_bucket()
-    get_motorcycles_data_response = get_motorcycles_data(s3_bucket)
-    transform_motorcycles_data_response = transform_motorcycles_data_with_spark(
-        get_motorcycles_data_response
-    )
-    load_motorcycles_data_in_redshift(transform_motorcycles_data_response, table)
+    table_name = create_redshift_table()
+    s3_bucket_name = create_s3_bucket()
+    raw_s3_location = get_motorcycles_data(s3_bucket_name)
+    transformed_s3_location = transform_motorcycles_data_with_spark(raw_s3_location)
+    load_motorcycles_data_in_redshift(transformed_s3_location, table_name)
 
 
 entregable_3()
